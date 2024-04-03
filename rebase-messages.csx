@@ -49,16 +49,33 @@ return await Paved.RunAsync(config: c => c.AnyPause(), action: async () =>
     WriteLine("基準ファイルを元に更新内容を作成");
     var rebaseDict = rebaseResource.Where(e => e.IsResource).ToLookup(e => e.Resource!.Key);
     var newRes = new List<MessageEntry>();
+    var newResDict = new Dictionary<string, MessageEntry>();
     foreach (var baseEntry in baseResource)
     {
         if (baseEntry.IsResource)
         {
+            // 既に出現したキーの場合はスキップ
+            if (newResDict.TryGetValue(baseEntry.Resource.Key, out var exists))
+            {
+                var same = baseEntry.Resource.Text == exists.Resource?.Text;
+                var status = same ? "same text" : Chalk.Yellow["differ text"];
+                WriteLine($"  Skip dupplicate key={baseEntry.Resource.Key}, Status={status}");
+                continue;
+            }
+
+            // 出現したキーを記録
+            newResDict[baseEntry.Resource.Key] = baseEntry;
+
+            // 更新対象リソースにキーが存在するかをチェック
             if (rebaseDict.Contains(baseEntry.Resource.Key))
             {
                 // 更新対象に元から存在するものはそれを反映する
-                foreach (var targetEntry in rebaseDict[baseEntry.Resource.Key])
+                var rebaseEntries = rebaseDict[baseEntry.Resource.Key];
+                var rebaseFirst = rebaseEntries.First();
+                newRes.Add(rebaseFirst);
+                if (1 < rebaseEntries.Select(e => e.Resource?.Text).Distinct().Count())
                 {
-                    newRes.Add(targetEntry);
+                    WriteLine(Chalk.Yellow[$"  Multiple rebasing resources"]);
                 }
             }
             else
